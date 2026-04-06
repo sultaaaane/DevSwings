@@ -1,0 +1,172 @@
+Screen {
+    background: #1e1e2e;
+    color: #cdd6f4;
+}
+
+Header {
+    dock: top;
+    height: 3;
+    background: #181825;
+    color: #cba6f7;
+    border-bottom: solid #313244;
+    content-align: center middle;
+    text-style: bold;
+}
+
+Footer {
+    dock: bottom;
+    height: 1;
+    background: #181825;
+    color: #a6e3a1;
+}
+
+#sidebar {
+    dock: left;
+    width: 32;
+    height: 100%;
+    background: #11111b;
+    border-right: solid #313244;
+    padding: 1 2;
+}
+
+#main-content {
+    width: 1fr;
+    height: 100%;
+    padding: 2 4;
+}
+
+.focus-card {
+    width: 64;
+    height: 20;
+    background: #1e1e2e;
+    border: double #cba6f7;
+    padding: 1 2;
+    align: center middle;
+    margin: 2 4;
+}
+
+#timer {
+    color: #fab387;
+    text-style: bold;
+    text-align: center;
+    margin: 1 0;
+    background: transparent;
+}
+
+.stat-label {
+    color: #94e2d5;
+    text-style: italic bold;
+    margin-top: 1;
+}
+
+.stat-value {
+    color: #cdd6f4;
+}
+
+.project-item {
+    color: #a6adc8;
+    margin: 1 2;
+    padding: 1 2;
+    width: 100%;
+    border-left: solid transparent;
+}
+
+.project-item:hover {
+    background: #313244;
+    color: #cdd6f4;
+}
+
+.selected-project {
+    color: #cba6f7;
+    background: #313244;
+    text-style: bold;
+    border-left: solid #cba6f7;
+}
+
+.project-item-active {
+    color: #89b4fa;
+    text-style: bold;
+}
+
+Button {
+    margin: 1 2;
+    background: #313244;
+    color: #cdd6f4;
+    border: tall #cba6f7;
+}
+
+Button:hover {
+    background: #cba6f7;
+    color: #11111b;
+}
+
+Button.-success {
+    background: #a6e3a1;
+    color: #11111b;
+    border: none;
+}
+
+Button.-error {
+    background: #f38ba8;
+    color: #11111b;
+    border: none;
+}
+
+Input {
+    margin: 1 2;
+    background: #181825;
+    color: #cdd6f4;
+    border: solid #313244;
+}
+
+#login-container {
+    width: 60;
+    height: auto;
+    background: #1e1e2e;
+    border: double #cba6f7;
+    padding: 2 4;
+    align: center middle;
+}
+
+#login-container Horizontal {
+    height: auto;
+    width: 100%;
+    align: center middle;
+}
+
+#login-container Button {
+    width: 14;
+}
+
+#flow-toggle {
+    height: auto;
+    width: 1fr;
+    align: center middle;
+}
+
+#flow-toggle Button {
+    width: 10;
+}
+
+.full-width {
+    width: 100%;
+}
+
+#report-content {
+    height: 1fr;
+    margin: 1 0;
+    padding: 1 2;
+    border: solid #313244;
+    background: #181825;
+}
+
+#report-content Label {
+    margin: 0;
+    padding: 0 1;
+    color: #cdd6f4;
+}
+
+#close-btn {
+    width: 20;
+    align-horizontal: center;
+}
