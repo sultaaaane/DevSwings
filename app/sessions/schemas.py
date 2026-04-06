@@ -16,6 +16,7 @@ class SessionCreate(SessionBase):
 
 
 class SessionUpdate(SQLModel):
+    energy_start: int | None = Field(default=None, ge=1, le=10)
     energy_end: int | None = Field(default=None, ge=1, le=10)
     mood: str | None = Field(default=None, max_length=20)
     flow_achieved: bool | None = Field(default=None)

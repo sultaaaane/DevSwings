@@ -8,8 +8,14 @@ from app.core.database import get_session
 import fakeredis
 from app.core.redis import get_redis
 
+import os
+import pytest
+
+# ...existing code...
 # Use in-memory SQLite for tests
 DATABASE_URL = "sqlite:///:memory:"
+
+os.environ["TESTING"] = "true"
 
 
 @pytest.fixture(name="session")

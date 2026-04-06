@@ -1,7 +1,7 @@
 from uuid import UUID
 from sqlmodel import Session, select, func
 from app.insights.model import Insight
-from app.sessions.model import Session as SessionModel
+from app.sessions.model import WorkSession as SessionModel
 from app.commits.model import Commit
 from app.insights.schemas import StatsSummary
 

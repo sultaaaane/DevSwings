@@ -13,7 +13,11 @@ import app.models
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    create_db()
+    # Skip DB creation if we are running in a test environment
+    import os
+
+    if os.getenv("TESTING") != "true":
+        create_db()
     yield
 
 

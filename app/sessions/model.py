@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 from sqlmodel import SQLModel, Field
 
 
-class Session(SQLModel, table=True):
+class WorkSession(SQLModel, table=True):
     __tablename__ = "sessions"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
