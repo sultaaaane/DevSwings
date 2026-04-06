@@ -29,6 +29,8 @@ class ReportScreen(ModalScreen[None]):
 
         # Format the stats into readable sections
         duration_hrs = self.stats.get("total_duration_minutes", 0) / 60
+        avg_energy_start = self.stats.get("average_energy_start")
+        avg_energy_end = self.stats.get("average_energy_end")
 
         yield_list = [
             Label(f"Total Sessions: [b]{self.stats.get('total_sessions', 0)}[/b]"),
@@ -37,10 +39,14 @@ class ReportScreen(ModalScreen[None]):
                 f"Flow State Frequency: [b]{self.stats.get('flow_sessions_count', 0)} sessions[/b]"
             ),
             Label(
-                f"Avg Start Energy: [b]{self.stats.get('average_energy_start', 0):.1f}/10[/b]"
+                f"Avg Start Energy: [b]{avg_energy_start:.1f}/10[/b]"
+                if avg_energy_start is not None
+                else "Avg Start Energy: [b]N/A[/b]"
             ),
             Label(
-                f"Avg End Energy: [b]{self.stats.get('average_energy_end', 0):.1f}/10[/b]"
+                f"Avg End Energy: [b]{avg_energy_end:.1f}/10[/b]"
+                if avg_energy_end is not None
+                else "Avg End Energy: [b]N/A[/b]"
             ),
             Label(f"Total Commits: [b]{self.stats.get('total_commits', 0)}[/b]"),
         ]
@@ -335,9 +341,18 @@ class DevSwingsApp(App):
         # Prepare for batch creation - using list of dicts
         formatted_commits = []
         for c in commits:
-            fc = {"sha": c["sha"], "message": c["message"]}
+            fc = {
+                "sha": c["sha"],
+                "message": c["message"],
+                "committed_at": c["committed_at"],
+                "repo_name": c["repo_name"],
+                "additions": c["additions"],
+                "deletions": c["deletions"],
+            }
             if self.selected_project_id:
                 fc["project_id"] = str(self.selected_project_id)
+            if self.active_session_id:
+                fc["session_id"] = str(self.active_session_id)
             formatted_commits.append(fc)
 
         success = await self.client.batch_create_commits(formatted_commits)
@@ -384,13 +399,10 @@ class DevSwingsApp(App):
             project_list.mount(project_label)
 
     async def on_click(self, event) -> None:
-        """Handle clicking anywhere in the UI."""
-        # Find the widget at the click coordinates
         try:
             target, _ = self.get_widget_at(event.screen_x, event.screen_y)
             if hasattr(target, "project_id"):
                 self.selected_project_id = target.project_id
-                # Use simplified notification text since renderable might be complex
                 self.notify(f"Project Selected!", severity="information")
                 await self.refresh_data()
         except Exception:
@@ -414,17 +426,20 @@ class DevSwingsApp(App):
         self.push_screen(SessionStartScreen(), handle_start)
 
     async def finalize_start_session(self, data: dict) -> None:
-        session = await self.client.create_session(
-            self.selected_project_id, data["energy"], data["mood"]
-        )
-        if session:
-            self.active_session_id = session["id"]
-            self.start_datetime = datetime.utcnow()
-            self.timer_active = True
-            self.notify("Deep Work Session Started!", severity="information")
-            self.run_worker(self.update_timer_loop())
-        else:
-            self.notify("Error starting session. Check backend.", severity="error")
+        try:
+            session = await self.client.create_session(
+                self.selected_project_id, data["energy"], data["mood"]
+            )
+            if session:
+                self.active_session_id = session["id"]
+                self.start_datetime = datetime.utcnow()
+                self.timer_active = True
+                self.notify("Deep Work Session Started!", severity="information")
+                self.run_worker(self.update_timer_loop())
+            else:
+                self.notify("Error starting session.", severity="error")
+        except Exception as e:
+            self.notify(f"Error: {str(e)}", severity="error")
 
     async def action_end_session(self) -> None:
         if not self.timer_active:
@@ -450,9 +465,10 @@ class DevSwingsApp(App):
             self.query_one("#timer", Digits).update("00:00")
             self.notify("Session Completed!", severity="success")
             await self.refresh_data()
+        else:
+            self.notify("Error saving session.", severity="error")
 
     async def update_timer_loop(self) -> None:
-        """Background worker loop to update the timer every second."""
         while self.timer_active:
             now = datetime.utcnow()
             delta = now - self.start_datetime
@@ -461,142 +477,23 @@ class DevSwingsApp(App):
             self.query_one("#timer", Digits).update(time_str)
             await asyncio.sleep(1)
 
-    async def login_action(self) -> None:
-        self.push_screen(LoginScreen(), self.on_login_result)
-
-    async def action_new_project(self) -> None:
-        self.push_screen(
-            CreateProjectScreen(),
-            lambda success: self.run_worker(self.refresh_data()) if success else None,
-        )
-
     async def action_view_report(self) -> None:
-        """Fetch stats and show the report screen."""
-        self.notify("Fetching report...", severity="information")
+        if not self.selected_project_id:
+            self.notify("Please select a project first.", severity="warning")
+            return
+
         stats = await self.client.get_my_stats(self.selected_project_id)
         if stats:
             self.push_screen(ReportScreen(stats))
         else:
-            self.notify("Could not fetch stats.", severity="error")
+            self.notify("Could not fetch project stats.", severity="error")
 
-    async def on_mount(self) -> None:
-        if not get_token():
-            self.push_screen(LoginScreen(), self.on_login_result)
-        else:
-            await self.refresh_data()
+    async def action_new_project(self) -> None:
+        def handle_new_project(success: bool):
+            if success:
+                self.run_worker(self.refresh_data())
 
-    def on_login_result(self, logged_in: bool) -> None:
-        if logged_in:
-            self.run_worker(self.refresh_data())
-
-    async def refresh_data(self) -> None:
-        """Fetch real data from the API."""
-        if not get_token():
-            return
-
-        # 1. Update Streaks
-        streak_data = await self.client.get_streak()
-        streak_label = self.query_one("#streak-label", Label)
-        days = streak_data.get("current_streak", 0)
-        streak_label.update(f"🔥 {days} Day{'s' if days != 1 else ''}")
-
-        # 2. Update Projects
-        projects = await self.client.get_projects()
-        project_list = self.query_one("#project-list", ScrollableContainer)
-        # Clear existing
-        for child in list(project_list.children):
-            child.remove()
-
-        for proj in projects:
-            goal = proj.get("weekly_goal_hours", 0)
-            name = proj.get("name")
-            proj_id = proj.get("id")
-
-            project_label = Label(f" {name} ", classes="project-item")
-            project_label.project_id = proj_id
-
-            if self.selected_project_id == proj_id:
-                project_label.add_class("selected-project")
-
-            project_list.mount(project_label)
-
-    async def on_click(self, event) -> None:
-        """Handle clicking anywhere in the UI."""
-        # Find the widget at the click coordinates
-        try:
-            target, _ = self.get_widget_at(event.screen_x, event.screen_y)
-            if hasattr(target, "project_id"):
-                self.selected_project_id = target.project_id
-                # Use simplified notification text since renderable might be complex
-                self.notify(f"Project Selected!", severity="information")
-                await self.refresh_data()
-        except Exception:
-            pass
-
-    async def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "start-btn":
-            await self.action_start_session()
-        elif event.button.id == "stop-btn":
-            await self.action_end_session()
-
-    async def action_start_session(self) -> None:
-        if self.timer_active:
-            self.notify("Session already active!", severity="warning")
-            return
-
-        def handle_start(data: dict):
-            if data:
-                self.run_worker(self.finalize_start_session(data))
-
-        self.push_screen(SessionStartScreen(), handle_start)
-
-    async def finalize_start_session(self, data: dict) -> None:
-        session = await self.client.create_session(
-            self.selected_project_id, data["energy"], data["mood"]
-        )
-        if session:
-            self.active_session_id = session["id"]
-            self.start_datetime = datetime.utcnow()
-            self.timer_active = True
-            self.notify("Deep Work Session Started!", severity="information")
-            self.run_worker(self.update_timer_loop())
-        else:
-            self.notify("Error starting session. Check backend.", severity="error")
-
-    async def action_end_session(self) -> None:
-        if not self.timer_active:
-            return
-
-        def handle_end(data: dict):
-            if data:
-                self.run_worker(self.finalize_end_session(data))
-
-        self.push_screen(SessionEndScreen(), handle_end)
-
-    async def finalize_end_session(self, data: dict) -> None:
-        success = await self.client.end_session(
-            self.active_session_id,
-            data["energy_end"],
-            data["flow_achieved"],
-            data["notes"],
-            data["blockers"],
-        )
-        if success:
-            self.timer_active = False
-            self.active_session_id = None
-            self.query_one("#timer", Digits).update("00:00")
-            self.notify("Session Completed!", severity="success")
-            await self.refresh_data()
-
-    async def update_timer_loop(self) -> None:
-        """Background worker loop to update the timer every second."""
-        while self.timer_active:
-            now = datetime.utcnow()
-            delta = now - self.start_datetime
-            minutes, seconds = divmod(int(delta.total_seconds()), 60)
-            time_str = f"{minutes:02}:{seconds:02}"
-            self.query_one("#timer", Digits).update(time_str)
-            await asyncio.sleep(1)
+        self.push_screen(CreateProjectScreen(), handle_new_project)
 
     def action_login_action(self) -> None:
         self.push_screen(LoginScreen(), self.on_login_result)
@@ -608,16 +505,12 @@ class DevSwingsApp(App):
         self.exit()
 
     async def action_ghost_mode(self) -> None:
-        """Trigger the Ghost Mode status script in the existing terminal."""
         if not self.active_session_id:
             self.notify(
                 "Must have an active session to enter Ghost Mode!", severity="warning"
             )
             return
-
         self.notify("Entering Ghost Mode. Closing TUI...", severity="information")
-        # In a real environment, you might spawn a process, but for this exercise
-        # we'll suggest running it from the CLI.
         self.exit(result="ghost")
 
 

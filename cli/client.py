@@ -89,6 +89,10 @@ class DevSwingsClient:
             )
             if response.status_code == 200:
                 return response.json()
+            elif response.status_code == 400:
+                # Handle error message from backend
+                detail = response.json().get("detail", "Error starting session.")
+                raise Exception(detail)
             return None
 
     async def end_session(
@@ -113,12 +117,14 @@ class DevSwingsClient:
             )
             return response.status_code == 200
 
-    async def create_commit(self, sha: str, message: str, project_id: Optional[str] = None) -> bool:
+    async def create_commit(
+        self, sha: str, message: str, project_id: Optional[str] = None
+    ) -> bool:
         async with httpx.AsyncClient() as client:
             payload = {"sha": sha, "message": message}
             if project_id:
                 payload["project_id"] = project_id
-            
+
             response = await client.post(
                 f"{self.base_url}/commits",
                 json=payload,
