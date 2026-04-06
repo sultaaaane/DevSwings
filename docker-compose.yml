@@ -30,6 +30,19 @@ services:
     networks:
       - devpulse_network
 
+  beat:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile
+    command: celery -A app.workers.celery beat --loglevel=info
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - devpulse_network
+
   db:
     image: postgres:16
     environment:

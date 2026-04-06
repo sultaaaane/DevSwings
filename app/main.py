@@ -6,6 +6,8 @@ from app.projects.router import router as project_router
 from app.sessions.router import router as session_router
 from app.commits.router import router as commit_router
 from app.streaks.router import router as streak_router
+from app.insights.router import router as insight_router
+from app.digests.router import router as digest_router
 import app.models
 
 
@@ -22,6 +24,8 @@ app.include_router(router=project_router, prefix="/projects", tags=["projects"])
 app.include_router(router=session_router, prefix="/sessions", tags=["sessions"])
 app.include_router(router=commit_router, prefix="/commits", tags=["commits"])
 app.include_router(router=streak_router, prefix="/streaks", tags=["streaks"])
+app.include_router(router=insight_router, prefix="/insights", tags=["insights"])
+app.include_router(router=digest_router, prefix="/digests", tags=["digests"])
 
 
 @app.get("/health")
