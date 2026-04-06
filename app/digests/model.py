@@ -1,9 +1,7 @@
 from datetime import datetime, date
 from uuid import UUID, uuid4
 from typing import Dict, Any
-from sqlmodel import SQLModel, Field
-from sqlalchemy import Column
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlmodel import SQLModel, Field, JSON, Column
 
 
 class Digest(SQLModel, table=True):
@@ -13,6 +11,6 @@ class Digest(SQLModel, table=True):
     user_id: UUID = Field(foreign_key="users.id")
     period_start: date
     period_end: date
-    content: Dict[str, Any] = Field(sa_column=Column(JSONB, nullable=False))
+    content: Dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
     delivered_at: datetime | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)

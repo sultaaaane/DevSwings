@@ -6,6 +6,8 @@ from jose import jwt, JWTError
 from passlib.context import CryptContext
 from sqlmodel import Session, select
 from redis import Redis
+import httpx
+from urllib.parse import urlencode
 
 from app.config import settings
 from app.users.model import User
@@ -128,3 +130,77 @@ def logout(access_token: str, redis: Redis) -> None:
 
     if ttl > 0:
         redis.setex(f"blocklist:{jti}", ttl, "1")
+
+
+async def get_github_access_token(code: str) -> str:
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "https://github.com/login/oauth/access_token",
+            data={
+                "client_id": settings.GITHUB_CLIENT_ID,
+                "client_secret": settings.GITHUB_CLIENT_SECRET,
+                "code": code,
+            },
+            headers={"Accept": "application/json"},
+        )
+        response.raise_for_status()
+        data = response.json()
+        if "access_token" not in data:
+            raise ValueError(
+                f"GitHub Error: {data.get('error_description', 'No access token')}"
+            )
+        return data["access_token"]
+
+
+async def get_github_user_info(access_token: str) -> dict:
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "https://api.github.com/user",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+async def github_auth_callback(code: str, db: Session) -> TokenResponse:
+    if not settings.GITHUB_CLIENT_ID or not settings.GITHUB_CLIENT_SECRET:
+        raise ValueError("GitHub credentials not configured")
+
+    token = await get_github_access_token(code)
+    gh_user = await get_github_user_info(token)
+
+    github_id = str(gh_user["id"])
+    github_username = gh_user["login"]
+    email = gh_user.get("email")
+
+    # If email is private, we might need another API call, but usually, public email is sent
+    # If email is null, use a placeholder or handle as error
+    if not email:
+        email = f"{github_username}@github.devpulse.com"
+
+    # Find or create user
+    user = db.exec(select(User).where(User.github_id == github_id)).first()
+
+    if not user:
+        # Check if email exists for a regular user
+        user = db.exec(select(User).where(User.email == email)).first()
+        if user:
+            # Link existing account
+            user.github_id = github_id
+            user.github_username = github_username
+        else:
+            # Create new user
+            user = User(
+                email=email,
+                github_id=github_id,
+                github_username=github_username,
+                is_active=True,
+            )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    return TokenResponse(
+        access_token=create_access_token(user.id),
+        refresh_token=create_refresh_token(user.id),
+    )
